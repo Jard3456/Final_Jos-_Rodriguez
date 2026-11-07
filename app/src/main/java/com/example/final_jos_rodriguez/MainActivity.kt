@@ -1,6 +1,7 @@
 package com.example.final_jos_rodriguez
 
 import android.app.Activity
+import android.app.DatePickerDialog
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
@@ -21,6 +22,7 @@ import androidx.activity.ComponentActivity
 import org.json.JSONArray
 import org.json.JSONObject
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import java.util.UUID
@@ -34,7 +36,8 @@ private data class Task(
     var title: String,
     var description: String,
     val createdAt: Long,
-    var completed: Boolean
+    var completed: Boolean,
+    var dueAt: Long? = null
 )
 
 private object TaskStore {
@@ -44,12 +47,14 @@ private object TaskStore {
         val array = try { JSONArray(json) } catch (_: Exception) { JSONArray() }
         for (i in 0 until array.length()) {
             val item = array.optJSONObject(i) ?: continue
+            val dueAtValue = item.opt("dueAt")
             result += Task(
                 id = item.optString("id"),
                 title = item.optString("title"),
                 description = item.optString("description"),
                 createdAt = item.optLong("createdAt"),
-                completed = item.optBoolean("completed")
+                completed = item.optBoolean("completed"),
+                dueAt = if (dueAtValue == null || dueAtValue == JSONObject.NULL) null else item.optLong("dueAt").takeIf { it > 0L }
             )
         }
         return result
@@ -64,23 +69,25 @@ private object TaskStore {
                 put("description", task.description)
                 put("createdAt", task.createdAt)
                 put("completed", task.completed)
+                put("dueAt", task.dueAt ?: JSONObject.NULL)
             })
         }
         context.getSharedPreferences(TASKS_PREFS, Context.MODE_PRIVATE)
             .edit().putString(TASKS_KEY, array.toString()).apply()
     }
 
-    fun add(context: Context, title: String, description: String) {
+    fun add(context: Context, title: String, description: String, dueAt: Long?) {
         val tasks = all(context)
-        tasks.add(0, Task(UUID.randomUUID().toString(), title.trim(), description.trim(), System.currentTimeMillis(), false))
+        tasks.add(0, Task(UUID.randomUUID().toString(), title.trim(), description.trim(), System.currentTimeMillis(), false, dueAt))
         save(context, tasks)
     }
 
-    fun updateDetails(context: Context, id: String, title: String, description: String) {
+    fun updateDetails(context: Context, id: String, title: String, description: String, dueAt: Long?) {
         val tasks = all(context)
         tasks.firstOrNull { it.id == id }?.apply {
             this.title = title.trim()
             this.description = description.trim()
+            this.dueAt = dueAt
         }
         save(context, tasks)
     }
@@ -283,6 +290,36 @@ class AddTaskActivity : ComponentActivity() {
             setText(existingTask?.description.orEmpty())
         }
         root.addView(description)
+        var selectedDueDate = existingTask?.dueAt
+        val dueDateButton = Button(this)
+        fun updateDueDateLabel() {
+            dueDateButton.text = selectedDueDate?.let {
+                "Fecha límite: ${SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date(it))}"
+            } ?: "Agregar fecha límite (opcional)"
+        }
+        updateDueDateLabel()
+        root.addView(dueDateButton)
+        val clearDueDateButton = Button(this).apply {
+            text = "Quitar fecha límite"
+            visibility = if (selectedDueDate == null) View.GONE else View.VISIBLE
+            setOnClickListener {
+                selectedDueDate = null
+                updateDueDateLabel()
+                visibility = View.GONE
+            }
+        }
+        root.addView(clearDueDateButton)
+        dueDateButton.setOnClickListener {
+            val calendar = Calendar.getInstance()
+            selectedDueDate?.let { calendar.timeInMillis = it }
+            DatePickerDialog(this, { _, year, month, day ->
+                calendar.set(year, month, day, 0, 0, 0)
+                calendar.set(Calendar.MILLISECOND, 0)
+                selectedDueDate = calendar.timeInMillis
+                updateDueDateLabel()
+                clearDueDateButton.visibility = View.VISIBLE
+            }, calendar.get(Calendar.YEAR), calendar.get(Calendar.MONTH), calendar.get(Calendar.DAY_OF_MONTH)).show()
+        }
         root.actionButton(if (existingTask == null) "Guardar tarea" else "Guardar cambios") {
             val value = title.text.toString().trim()
             if (value.isEmpty()) {
@@ -290,9 +327,9 @@ class AddTaskActivity : ComponentActivity() {
                 title.requestFocus()
             } else {
                 if (existingTask == null) {
-                    TaskStore.add(this, value, description.text.toString())
+                    TaskStore.add(this, value, description.text.toString(), selectedDueDate)
                 } else {
-                    TaskStore.updateDetails(this, existingTask.id, value, description.text.toString())
+                    TaskStore.updateDetails(this, existingTask.id, value, description.text.toString(), selectedDueDate)
                 }
                 finish()
             }
@@ -333,6 +370,15 @@ class TaskDetailActivity : ComponentActivity() {
             textSize = 14f
             setTextColor(Color.GRAY)
         })
+        task.dueAt?.let { dueAt ->
+            val dueDate = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date(dueAt))
+            root.addView(TextView(this).apply {
+                text = "Fecha límite: $dueDate"
+                textSize = 14f
+                setTextColor(Color.rgb(170, 75, 35))
+                setPadding(0, 8, 0, 12)
+            })
+        }
         root.actionButton("Editar tarea") {
             startActivity(Intent(this, AddTaskActivity::class.java).putExtra(EXTRA_TASK_ID, task.id))
             finish()
@@ -349,6 +395,8 @@ class TaskDetailActivity : ComponentActivity() {
         setContentView(root)
     }
 }
+
+
 
 
 
