@@ -29,8 +29,8 @@ private const val TASKS_KEY = "tasks"
 
 private data class Task(
     val id: String,
-    val title: String,
-    val description: String,
+    var title: String,
+    var description: String,
     val createdAt: Long,
     var completed: Boolean
 )
@@ -71,6 +71,15 @@ private object TaskStore {
     fun add(context: Context, title: String, description: String) {
         val tasks = all(context)
         tasks.add(0, Task(UUID.randomUUID().toString(), title.trim(), description.trim(), System.currentTimeMillis(), false))
+        save(context, tasks)
+    }
+
+    fun updateDetails(context: Context, id: String, title: String, description: String) {
+        val tasks = all(context)
+        tasks.firstOrNull { it.id == id }?.apply {
+            this.title = title.trim()
+            this.description = description.trim()
+        }
         save(context, tasks)
     }
 
@@ -224,13 +233,22 @@ class MainActivity : ComponentActivity() {
 class AddTaskActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val taskId = intent.getStringExtra(EXTRA_TASK_ID).orEmpty()
+        val existingTask = if (taskId.isBlank()) null else TaskStore.find(this, taskId)
         val root = column()
-        root.addView(heading("Nueva tarea"))
+        if (taskId.isNotBlank() && existingTask == null) {
+            root.addView(heading("Tarea no encontrada"))
+            root.actionButton("Volver") { finish() }
+            setContentView(root)
+            return
+        }
+        root.addView(heading(if (existingTask == null) "Nueva tarea" else "Editar tarea"))
         val titleLabel = TextView(this).apply { text = "Título"; textSize = 16f }
         root.addView(titleLabel)
         val title = android.widget.EditText(this).apply {
             hint = "Ej. Preparar informe"
             singleLine = true
+            setText(existingTask?.title.orEmpty())
         }
         root.addView(title)
         val descriptionLabel = TextView(this).apply {
@@ -243,15 +261,20 @@ class AddTaskActivity : ComponentActivity() {
             hint = "Agrega detalles (opcional)"
             minLines = 4
             gravity = Gravity.TOP
+            setText(existingTask?.description.orEmpty())
         }
         root.addView(description)
-        root.actionButton("Guardar tarea") {
+        root.actionButton(if (existingTask == null) "Guardar tarea" else "Guardar cambios") {
             val value = title.text.toString().trim()
             if (value.isEmpty()) {
                 title.error = "Escribe un título"
                 title.requestFocus()
             } else {
-                TaskStore.add(this, value, description.text.toString())
+                if (existingTask == null) {
+                    TaskStore.add(this, value, description.text.toString())
+                } else {
+                    TaskStore.updateDetails(this, existingTask.id, value, description.text.toString())
+                }
                 finish()
             }
         }
@@ -291,6 +314,10 @@ class TaskDetailActivity : ComponentActivity() {
             textSize = 14f
             setTextColor(Color.GRAY)
         })
+        root.actionButton("Editar tarea") {
+            startActivity(Intent(this, AddTaskActivity::class.java).putExtra(EXTRA_TASK_ID, task.id))
+            finish()
+        }
         root.actionButton(if (task.completed) "Marcar como pendiente" else "Marcar como completada") {
             TaskStore.update(this, task.id, !task.completed)
             finish()
@@ -303,4 +330,5 @@ class TaskDetailActivity : ComponentActivity() {
         setContentView(root)
     }
 }
+
 
