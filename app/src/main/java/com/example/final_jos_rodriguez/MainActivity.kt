@@ -165,7 +165,7 @@ class MainActivity : ComponentActivity() {
         root.addView(filterRow)
         search = android.widget.EditText(this).apply {
             hint = "Buscar por título o descripción"
-            singleLine = true
+            isSingleLine = true
             addTextChangedListener(object : TextWatcher {
                 override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
                 override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
@@ -283,7 +283,7 @@ class AddTaskActivity : ComponentActivity() {
         root.addView(titleLabel)
         val title = android.widget.EditText(this).apply {
             hint = "Ej. Preparar informe"
-            singleLine = true
+            isSingleLine = true
             setText(existingTask?.title.orEmpty())
         }
         root.addView(title)
@@ -405,6 +405,7 @@ class TaskDetailActivity : ComponentActivity() {
         setContentView(root)
     }
 }
+
 
 
 
