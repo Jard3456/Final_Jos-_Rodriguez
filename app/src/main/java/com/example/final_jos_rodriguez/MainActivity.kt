@@ -6,6 +6,8 @@ import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
 import android.os.Bundle
+import android.text.Editable
+import android.text.TextWatcher
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
@@ -120,6 +122,7 @@ private fun LinearLayout.actionButton(label: String, onClick: () -> Unit) {
 class MainActivity : ComponentActivity() {
     private lateinit var list: ListView
     private lateinit var empty: TextView
+    private lateinit var search: android.widget.EditText
     private var selectedFilter = "Todas"
     private val filterButtons = mutableMapOf<String, Button>()
 
@@ -146,6 +149,18 @@ class MainActivity : ComponentActivity() {
             filterRow.addView(button, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         }
         root.addView(filterRow)
+        search = android.widget.EditText(this).apply {
+            hint = "Buscar por título o descripción"
+            singleLine = true
+            addTextChangedListener(object : TextWatcher {
+                override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
+                override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                    refreshTasks()
+                }
+                override fun afterTextChanged(s: Editable?) = Unit
+            })
+        }
+        root.addView(search)
         empty = TextView(this).apply {
             text = "Aún no tienes tareas. Agrega una para comenzar."
             textSize = 16f
@@ -168,18 +183,22 @@ class MainActivity : ComponentActivity() {
 
     private fun refreshTasks() {
         val allTasks = TaskStore.all(this)
-        val tasks = when (selectedFilter) {
+        val statusTasks = when (selectedFilter) {
             "Pendientes" -> allTasks.filterNot { it.completed }
             "Completadas" -> allTasks.filter { it.completed }
             else -> allTasks
         }
+        val query = search.text.toString().trim()
+        val tasks = if (query.isEmpty()) statusTasks else statusTasks.filter { task ->
+            task.title.contains(query, ignoreCase = true) || task.description.contains(query, ignoreCase = true)
+        }
         filterButtons.forEach { (filter, button) ->
             button.text = if (filter == selectedFilter) "✓ $filter" else filter
         }
-        empty.text = if (allTasks.isEmpty()) {
-            "Aún no tienes tareas. Agrega una para comenzar."
-        } else {
-            "No hay tareas en esta categoría."
+        empty.text = when {
+            allTasks.isEmpty() -> "Aún no tienes tareas. Agrega una para comenzar."
+            query.isNotEmpty() && tasks.isEmpty() -> "No se encontraron tareas para \"$query\"."
+            else -> "No hay tareas en esta categoría."
         }
         empty.visibility = if (tasks.isEmpty()) View.VISIBLE else View.GONE
         list.visibility = if (tasks.isEmpty()) View.GONE else View.VISIBLE
@@ -330,5 +349,6 @@ class TaskDetailActivity : ComponentActivity() {
         setContentView(root)
     }
 }
+
 
 
