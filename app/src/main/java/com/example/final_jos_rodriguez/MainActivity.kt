@@ -111,6 +111,8 @@ private fun LinearLayout.actionButton(label: String, onClick: () -> Unit) {
 class MainActivity : ComponentActivity() {
     private lateinit var list: ListView
     private lateinit var empty: TextView
+    private var selectedFilter = "Todas"
+    private val filterButtons = mutableMapOf<String, Button>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -119,6 +121,22 @@ class MainActivity : ComponentActivity() {
         root.actionButton("+ Agregar tarea") {
             startActivity(Intent(this, AddTaskActivity::class.java))
         }
+        val filterRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+        }
+        listOf("Todas", "Pendientes", "Completadas").forEach { filter ->
+            val button = Button(this).apply {
+                text = filter
+                setOnClickListener {
+                    selectedFilter = filter
+                    refreshTasks()
+                }
+            }
+            filterButtons[filter] = button
+            filterRow.addView(button, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        }
+        root.addView(filterRow)
         empty = TextView(this).apply {
             text = "Aún no tienes tareas. Agrega una para comenzar."
             textSize = 16f
@@ -140,7 +158,20 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun refreshTasks() {
-        val tasks = TaskStore.all(this)
+        val allTasks = TaskStore.all(this)
+        val tasks = when (selectedFilter) {
+            "Pendientes" -> allTasks.filterNot { it.completed }
+            "Completadas" -> allTasks.filter { it.completed }
+            else -> allTasks
+        }
+        filterButtons.forEach { (filter, button) ->
+            button.text = if (filter == selectedFilter) "✓ $filter" else filter
+        }
+        empty.text = if (allTasks.isEmpty()) {
+            "Aún no tienes tareas. Agrega una para comenzar."
+        } else {
+            "No hay tareas en esta categoría."
+        }
         empty.visibility = if (tasks.isEmpty()) View.VISIBLE else View.GONE
         list.visibility = if (tasks.isEmpty()) View.GONE else View.VISIBLE
         list.adapter = TaskAdapter(tasks,
@@ -272,3 +303,4 @@ class TaskDetailActivity : ComponentActivity() {
         setContentView(root)
     }
 }
+
