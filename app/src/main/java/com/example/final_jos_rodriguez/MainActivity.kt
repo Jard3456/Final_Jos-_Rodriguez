@@ -129,6 +129,7 @@ private fun LinearLayout.actionButton(label: String, onClick: () -> Unit) {
 class MainActivity : ComponentActivity() {
     private lateinit var list: ListView
     private lateinit var empty: TextView
+    private lateinit var summary: TextView
     private lateinit var search: android.widget.EditText
     private var selectedFilter = "Todas"
     private val filterButtons = mutableMapOf<String, Button>()
@@ -140,6 +141,12 @@ class MainActivity : ComponentActivity() {
         root.actionButton("+ Agregar tarea") {
             startActivity(Intent(this, AddTaskActivity::class.java))
         }
+        summary = TextView(this).apply {
+            textSize = 15f
+            setTextColor(Color.rgb(70, 85, 105))
+            setPadding(0, 8, 0, 8)
+        }
+        root.addView(summary)
         val filterRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
@@ -190,6 +197,9 @@ class MainActivity : ComponentActivity() {
 
     private fun refreshTasks() {
         val allTasks = TaskStore.all(this)
+        val pendingCount = allTasks.count { !it.completed }
+        val completedCount = allTasks.count { it.completed }
+        summary.text = "Total: ${allTasks.size}  ·  Pendientes: $pendingCount  ·  Completadas: $completedCount"
         val statusTasks = when (selectedFilter) {
             "Pendientes" -> allTasks.filterNot { it.completed }
             "Completadas" -> allTasks.filter { it.completed }
@@ -395,6 +405,7 @@ class TaskDetailActivity : ComponentActivity() {
         setContentView(root)
     }
 }
+
 
 
 
